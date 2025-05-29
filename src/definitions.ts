@@ -9,7 +9,7 @@ export interface AudioSource {
   /**
    * A URI for the audio file to play.
    */
-  source: string;
+  audioSource: string;
 
   /**
    * Title of the audio track.
