@@ -514,7 +514,7 @@ Displays the AirPlay menu for streaming audio to AirPlay-compatible devices.
 | Prop                | Type                | Description                                   |
 | ------------------- | ------------------- | --------------------------------------------- |
 | **`audioId`**       | <code>string</code> | Unique identifier for the audio source.       |
-| **`source`**        | <code>string</code> | A URI for the audio file to play.             |
+| **`audioSource`**   | <code>string</code> | A URI for the audio file to play.             |
 | **`title`**         | <code>string</code> | Title of the audio track.                     |
 | **`artist`**        | <code>string</code> | Artist of the audio track.                    |
 | **`albumTitle`**    | <code>string</code> | Album title of the audio track.               |
