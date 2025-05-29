@@ -1,10 +1,9 @@
 import { registerPlugin } from '@capacitor/core';
+import type { AudioPlayerPlugin } from './definitions';
 
-import type { ExamplePlugin } from './definitions';
-
-const Example = registerPlugin<ExamplePlugin>('Example', {
-  web: () => import('./web').then((m) => new m.ExampleWeb()),
+const AudioPlayer = registerPlugin<AudioPlayerPlugin>('AudioPlayer', {
+  web: () => import('./web').then((m) => new m.AudioPlayerWeb()),
 });
 
 export * from './definitions';
-export { Example };
+export { AudioPlayer };
