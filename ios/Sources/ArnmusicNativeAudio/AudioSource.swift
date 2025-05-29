@@ -1,3 +1,5 @@
+import Foundation
+
 class AudioSource: NSObject, Codable {
     var audioId: String
     var source: String
