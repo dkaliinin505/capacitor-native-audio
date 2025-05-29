@@ -1,6 +1,6 @@
 #import <Capacitor/Capacitor.h>
 
-CAP_PLUGIN(AudioPlayerPlugin, "AudioPlayer",
+CAP_PLUGIN(AudioPlayerPlugin, "AudioPlayerPlugin",
     CAP_PLUGIN_METHOD(create, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(createMultiple, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(play, CAPPluginReturnPromise);

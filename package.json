@@ -1,6 +1,6 @@
 {
   "name": "arnmusic-native-audio",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Play audio in a Capacitor app natively (Android/iOS) from a URL/web source simultaneously with background audio. Also supports background playing with an OS notification.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
