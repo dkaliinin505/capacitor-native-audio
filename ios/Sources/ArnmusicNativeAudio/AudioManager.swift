@@ -684,4 +684,91 @@ public class AudioManager {
             print("Unhandled route change reason: \(reason)")
         }
     }
+
+    // MARK: - Audio Source Updates
+
+    func changeAudioSource(audioId: String, newSource: String) throws {
+        guard let index = audioSources.firstIndex(where: { $0.audioId == audioId }) else {
+            throw AudioPlayerError.runtimeError("Audio source with ID \(audioId) not found")
+        }
+
+        // Create updated audio source with new source path
+        var updatedSource = audioSources[index]
+        updatedSource.source = newSource
+
+        // Update the source in the array
+        audioSources[index] = updatedSource
+
+        // If this is the currently playing source, update the player
+        if currentIndex == index {
+            guard let url = URL(string: newSource) else {
+                throw AudioPlayerError.invalidPath
+            }
+
+            let wasPlaying = isPlaying()
+            let currentTime = getCurrentTime()
+
+            let playerItem = AVPlayerItem(url: url)
+            audioPlayer.replaceCurrentItem(with: playerItem)
+
+            // Restore playback position if it was playing
+            if wasPlaying {
+                audioPlayer.seek(to: CMTime(seconds: currentTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))) { [weak self] completed in
+                    if completed {
+                        self?.audioPlayer.play()
+                        self?.updateNowPlayingInfo()
+                    }
+                }
+            }
+
+            // Observe the new player item status
+            playerItemStatusObserver = playerItem.observe(\.status, options: [.new, .initial]) {
+                [weak self] item, _ in
+                guard let self = self else { return }
+                if item.status == .readyToPlay {
+                    print("New player item is ready to play")
+                    self.updateNowPlayingInfo()
+                } else if item.status == .failed {
+                    print("Failed to load new player item: \(String(describing: item.error))")
+                }
+            }
+        }
+
+        print("Audio source updated for \(audioId): \(newSource)")
+    }
+
+    func changeMetadata(audioId: String, title: String? = nil, artist: String? = nil, albumTitle: String? = nil, artworkSource: String? = nil) throws {
+        guard let index = audioSources.firstIndex(where: { $0.audioId == audioId }) else {
+            throw AudioPlayerError.runtimeError("Audio source with ID \(audioId) not found")
+        }
+
+        // Update the metadata fields that are provided
+        var updatedSource = audioSources[index]
+
+        if let title = title {
+            updatedSource.title = title
+        }
+
+        if let artist = artist {
+            updatedSource.artist = artist
+        }
+
+        if let albumTitle = albumTitle {
+            updatedSource.albumTitle = albumTitle
+        }
+
+        if let artworkSource = artworkSource {
+            updatedSource.artworkSource = artworkSource
+        }
+
+        // Update the source in the array
+        audioSources[index] = updatedSource
+
+        // If this is the currently playing source, update the Now Playing info
+        if currentIndex == index {
+            updateNowPlayingInfo()
+        }
+
+        print("Metadata updated for \(audioId)")
+    }
 }

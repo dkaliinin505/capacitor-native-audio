@@ -80,7 +80,7 @@ public class AudioPlayerPlugin: CAPPlugin {
             call.reject(detailedError)
         }
     }
-    
+
     @objc func setAudioSources(_ call: CAPPluginCall) {
         guard let sourcesArray = call.getArray("audioSources") as? [[String: Any]] else {
             call.reject("Invalid or missing audio sources")
@@ -178,12 +178,12 @@ public class AudioPlayerPlugin: CAPPlugin {
         let currentTime = audioManager.getCurrentTime()
         call.resolve(["currentTime": currentTime])
     }
-    
+
     @objc func isPlaying(_ call: CAPPluginCall) {
         let isPlaying = audioManager.isPlaying()
         call.resolve(["isPlaying": isPlaying])
     }
-    
+
     @objc func getCurrentAudio(_ call: CAPPluginCall) {
         guard let currentAudioSource = audioManager.getCurrentAudioSource() else {
             call.reject("No current audio source")
@@ -206,7 +206,7 @@ public class AudioPlayerPlugin: CAPPlugin {
         let duration = audioManager.getCurrentDuration()
         call.resolve(["duration": duration])
     }
-    
+
     @objc func showAirPlayMenu(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             // Create a temporary MPVolumeView
@@ -255,7 +255,7 @@ public class AudioPlayerPlugin: CAPPlugin {
             print("Native onPlaybackStatusChange should be triggered")
             self.notifyListeners("onPlaybackStatusChange", data: ["isPlaying": isPlaying])
         }
-        
+
         audioManager.onAudioEnd = {
             print("Native onAudioEnd should be triggered")
             self.notifyListeners("onAudioEnd", data: [:])
@@ -293,7 +293,7 @@ public class AudioPlayerPlugin: CAPPlugin {
         }
         return source
     }
-    
+
     private func tryGetAudioSource(_ call: CAPPluginCall) -> AudioSource? {
         guard let audioId = call.getString("audioId") else {
             return nil
@@ -310,5 +310,164 @@ public class AudioPlayerPlugin: CAPPlugin {
         for callbackId in callbackIds.values {
             bridge?.savedCall(withID: callbackId)?.resolve()
         }
+    }
+
+    @objc func destroy(_ call: CAPPluginCall) {
+            removeOnEndObservation()
+            removeRemoteTransportControls()
+            removeNowPlaying()
+            removeInterruptionNotifications()
+    }
+
+    private func removeOnEndObservation() {
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+    }
+
+    private func removeRemoteTransportControls() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.playCommand.removeTarget(self)
+        commandCenter.pauseCommand.removeTarget(self)
+        commandCenter.stopCommand.removeTarget(self)
+        commandCenter.nextTrackCommand.removeTarget(self)
+        commandCenter.previousTrackCommand.removeTarget(self)
+    }
+
+    private func removeNowPlaying() {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
+    private func removeInterruptionNotifications() {
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: audioSession)
+    }
+
+    // Add these methods to your AudioPlayerPlugin.swift class
+
+    @objc func changeAudioSource(_ call: CAPPluginCall) {
+        do {
+            let audioId = try audioId(call)
+            guard let newSource = call.getString("source") else {
+                call.reject("Missing source parameter")
+                return
+            }
+
+            // Implementation depends on your AudioManager
+            // You'll need to add this method to AudioManager
+            try audioManager.changeAudioSource(audioId: audioId, newSource: newSource)
+            call.resolve()
+        } catch {
+            call.reject("There was an issue changing the audio source", nil, error)
+        }
+    }
+
+    @objc func changeMetadata(_ call: CAPPluginCall) {
+        do {
+            let audioId = try audioId(call)
+
+            let title = call.getString("title")
+            let artist = call.getString("artist")
+            let albumTitle = call.getString("albumTitle")
+            let artworkSource = call.getString("artworkSource")
+
+            // Implementation depends on your AudioManager
+            // You'll need to add this method to AudioManager
+            try audioManager.changeMetadata(
+                audioId: audioId,
+                title: title,
+                artist: artist,
+                albumTitle: albumTitle,
+                artworkSource: artworkSource
+            )
+            call.resolve()
+        } catch {
+            call.reject("There was an issue changing the metadata", nil, error)
+        }
+    }
+
+    @objc func playNext(_ call: CAPPluginCall) {
+        do {
+            try audioManager.playNext()
+            call.resolve()
+        } catch {
+            call.reject("There was an issue playing the next audio", nil, error)
+        }
+    }
+
+    @objc func playPrevious(_ call: CAPPluginCall) {
+        do {
+            try audioManager.playPrevious()
+            call.resolve()
+        } catch {
+            call.reject("There was an issue playing the previous audio", nil, error)
+        }
+    }
+
+    // Callback methods that need to be implemented
+    @objc func onAudioReady(_ call: CAPPluginCall) {
+        guard let audioId = call.getString("audioId") else {
+            call.reject("Missing audioId parameter")
+            return
+        }
+
+        // Store the callback for this audioId
+        call.keepAlive = true
+        // You'll need to implement callback storage and triggering logic
+        // based on your AudioManager's ready events
+    }
+
+    @objc func onAudioEnd(_ call: CAPPluginCall) {
+        guard let audioId = call.getString("audioId") else {
+            call.reject("Missing audioId parameter")
+            return
+        }
+
+        // Store the callback for this audioId
+        call.keepAlive = true
+        // You'll need to implement callback storage and triggering logic
+        // based on your AudioManager's end events
+    }
+
+    @objc func onPlaybackStatusChange(_ call: CAPPluginCall) {
+        // Store the callback
+        call.keepAlive = true
+        // You'll need to implement callback storage and triggering logic
+        // based on your AudioManager's status change events
+    }
+
+    @objc func onPlayNext(_ call: CAPPluginCall) {
+        // Store the callback
+        call.keepAlive = true
+        // This should trigger when next track is played
+    }
+
+    @objc func onPlayPrevious(_ call: CAPPluginCall) {
+        // Store the callback
+        call.keepAlive = true
+        // This should trigger when previous track is played
+    }
+
+    @objc func onSeek(_ call: CAPPluginCall) {
+        // Store the callback
+        call.keepAlive = true
+        // This should trigger when seek events occur
+    }
+
+    @objc func onAppGainsFocus(_ call: CAPPluginCall) {
+        guard let callbackId = call.callbackId else {
+            call.reject("Missing callback ID")
+            return
+        }
+
+        onGainsFocusCallbackIds[callbackId] = callbackId
+        call.keepAlive = true
+    }
+
+    @objc func onAppLosesFocus(_ call: CAPPluginCall) {
+        guard let callbackId = call.callbackId else {
+            call.reject("Missing callback ID")
+            return
+        }
+
+        onLosesFocusCallbackIds[callbackId] = callbackId
+        call.keepAlive = true
     }
 }
