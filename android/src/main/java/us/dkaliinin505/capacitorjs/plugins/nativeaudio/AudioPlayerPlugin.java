@@ -499,6 +499,42 @@ public class AudioPlayerPlugin extends Plugin {
         audioSources.get(audioId(call)).setOnPlaybackStatusChange(call.getCallbackId());
     }
 
+    @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
+    public void onPlayNext(PluginCall call) {
+        if (!audioSourceExists("onPlayNext", call)) {
+            return;
+        }
+
+        call.setKeepAlive(true);
+        getBridge().saveCall(call);
+
+        audioSources.get(audioId(call)).setOnPlayNext(call.getCallbackId());
+    }
+
+    @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
+    public void onPlayPrevious(PluginCall call) {
+        if (!audioSourceExists("onPlayPrevious", call)) {
+            return;
+        }
+
+        call.setKeepAlive(true);
+        getBridge().saveCall(call);
+
+        audioSources.get(audioId(call)).setOnPlayPrevious(call.getCallbackId());
+    }
+
+    @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
+    public void onAudioStalled(PluginCall call) {
+        if (!audioSourceExists("onAudioStalled", call)) {
+            return;
+        }
+
+        call.setKeepAlive(true);
+        getBridge().saveCall(call);
+
+        audioSources.get(audioId(call)).setOnAudioStalled(call.getCallbackId());
+    }
+
     @Override
     protected void handleOnStart() {
         Log.i(TAG, "Handling onStart");

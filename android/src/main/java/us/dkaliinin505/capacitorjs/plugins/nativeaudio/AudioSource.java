@@ -27,6 +27,9 @@ public class AudioSource extends Binder {
     public String onPlaybackStatusChangeCallbackId;
     public String onReadyCallbackId;
     public String onEndCallbackId;
+    public String onPlayNextCallbackId;
+    public String onPlayPreviousCallbackId;
+    public String onAudioStalledCallbackId;
 
     private AudioPlayerPlugin pluginOwner;
 
@@ -167,6 +170,18 @@ public class AudioSource extends Binder {
 
     public void setOnPlaybackStatusChange(String callbackId) {
         onPlaybackStatusChangeCallbackId = callbackId;
+    }
+
+    public void setOnPlayNext(String callbackId) {
+        onPlayNextCallbackId = callbackId;
+    }
+
+    public void setOnPlayPrevious(String callbackId) {
+        onPlayPreviousCallbackId = callbackId;
+    }
+
+    public void setOnAudioStalled(String callbackId) {
+        onAudioStalledCallbackId = callbackId;
     }
 
     public boolean isPlaying() {
