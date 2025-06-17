@@ -15,7 +15,7 @@
         "Package.swift",
         "DkaliniinCapacitorNativeAudio.podspec"
     ],
-    "author": "dkaliinin505",
+    "author": "bahus",
     "license": "MIT",
     "repository": {
         "type": "git",
