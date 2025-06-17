@@ -1,4 +1,4 @@
-package us.mediagrid.capacitorjs.plugins.nativeaudio;
+package us.dkaliinin505.capacitorjs.plugins.nativeaudio;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -21,7 +21,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.util.HashMap;
-import us.mediagrid.capacitorjs.plugins.nativeaudio.exceptions.DestroyNotAllowedException;
+import us.dkaliinin505.capacitorjs.plugins.nativeaudio.exceptions.DestroyNotAllowedException;
 
 @CapacitorPlugin(name = "AudioPlayer")
 public class AudioPlayerPlugin extends Plugin {

@@ -1,4 +1,4 @@
-package us.mediagrid.capacitorjs.plugins.nativeaudio;
+package us.dkaliinin505.capacitorjs.plugins.nativeaudio;
 
 import android.content.Intent;
 import android.os.IBinder;

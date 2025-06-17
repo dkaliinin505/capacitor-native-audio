@@ -1,4 +1,4 @@
-package us.mediagrid.capacitorjs.plugins.nativeaudio;
+package us.dkaliinin505.capacitorjs.plugins.nativeaudio;
 
 import android.os.Bundle;
 import androidx.annotation.OptIn;

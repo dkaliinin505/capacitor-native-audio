@@ -1,10 +1,10 @@
-package us.mediagrid.capacitorjs.plugins.nativeaudio;
+package us.dkaliinin505.capacitorjs.plugins.nativeaudio;
 
 import android.os.Binder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import us.mediagrid.capacitorjs.plugins.nativeaudio.exceptions.AudioSourceAlreadyExistsException;
+import us.dkaliinin505.capacitorjs.plugins.nativeaudio.exceptions.AudioSourceAlreadyExistsException;
 
 public class AudioSources extends Binder {
 
