@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "MediagridCapacitorNativeAudio",
+    name: "DkaliniinCapacitorNativeAudio",
     platforms: [.iOS(.v14)],
     products: [
         .library(
-            name: "MediagridCapacitorNativeAudio",
+            name: "DkaliniinCapacitorNativeAudio",
             targets: ["AudioPlayerPlugin"])
     ],
     dependencies: [
