@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "DkaliniinCapacitorNativeAudio",
+    name: "Dkaliinin505CapacitorNativeAudio",
     platforms: [.iOS(.v14)],
     products: [
         .library(
-            name: "DkaliniinCapacitorNativeAudio",
+            name: "Dkaliinin505CapacitorNativeAudio",
             targets: ["AudioPlayerPlugin"])
     ],
     dependencies: [
