@@ -106,6 +106,9 @@ A PNG is recommended with the size of 1024 x 1024px. The same image can be used 
 * [`onAudioReady(...)`](#onaudioready)
 * [`onAudioEnd(...)`](#onaudioend)
 * [`onPlaybackStatusChange(...)`](#onplaybackstatuschange)
+* [`onPlayNext(...)`](#onplaynext)
+* [`onPlayPrevious(...)`](#onplayprevious)
+* [`onAudioStalled(...)`](#onaudiostalled)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -459,18 +462,66 @@ Registers a callback for when the audio source has ended (reached the end of the
 onPlaybackStatusChange(params: AudioPlayerListenerParams, callback: (result: { status: 'playing' | 'paused' | 'stopped'; }) => void) => Promise<AudioPlayerListenerResult>
 ```
 
-Registers a callback for when state of playback for the audio source has changed by external controls.
-This should be used to update your UI when the notification/external controls are used to control the playback.
-
-On Android, this also gets fired when your app changes the state (e.g. by calling `play`, `pause` or `stop`)
-due to a limitation of not knowing where the state change came from, either the app or the `MediaSession` (external controls).
-
-It may be fixed in the future for Android if a solution is found so don't rely on it when your app itself changes the state.
+Registers a callback for when state of playback for the audio source has changed.
+This should be used to update the UI when the notification controls are used to control the playback.
 
 | Param          | Type                                                                              |
 | -------------- | --------------------------------------------------------------------------------- |
 | **`params`**   | <code><a href="#audioplayerlistenerparams">AudioPlayerListenerParams</a></code>   |
 | **`callback`** | <code>(result: { status: 'playing' \| 'paused' \| 'stopped'; }) =&gt; void</code> |
+
+**Returns:** <code>Promise&lt;<a href="#audioplayerlistenerresult">AudioPlayerListenerResult</a>&gt;</code>
+
+**Since:** 1.0.0
+
+--------------------
+
+
+### onPlayNext(...)
+
+```typescript
+onPlayNext(params: { audioId: string; }, callback: () => void) => Promise<{ callbackId: string; }>
+```
+
+| Param          | Type                              |
+| -------------- | --------------------------------- |
+| **`params`**   | <code>{ audioId: string; }</code> |
+| **`callback`** | <code>() =&gt; void</code>        |
+
+**Returns:** <code>Promise&lt;{ callbackId: string; }&gt;</code>
+
+--------------------
+
+
+### onPlayPrevious(...)
+
+```typescript
+onPlayPrevious(params: { audioId: string; }, callback: () => void) => Promise<{ callbackId: string; }>
+```
+
+| Param          | Type                              |
+| -------------- | --------------------------------- |
+| **`params`**   | <code>{ audioId: string; }</code> |
+| **`callback`** | <code>() =&gt; void</code>        |
+
+**Returns:** <code>Promise&lt;{ callbackId: string; }&gt;</code>
+
+--------------------
+
+
+### onAudioStalled(...)
+
+```typescript
+onAudioStalled(params: AudioPlayerListenerParams, callback: (result: { reason: 'playback_stalled' | 'buffer_empty' | 'stall_resolved' | 'likely_to_keep_up'; currentTime: number; duration: number; networkAvailable: boolean; bufferEmpty?: boolean; likelyToKeepUp?: boolean; }) => void) => Promise<AudioPlayerListenerResult>
+```
+
+Registers a callback for when the audio source playback is stalled.
+This can happen due to network issues, buffering problems, or other playback interruptions.
+
+| Param          | Type                                                                                                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`params`**   | <code><a href="#audioplayerlistenerparams">AudioPlayerListenerParams</a></code>                                                                                                                                                                   |
+| **`callback`** | <code>(result: { reason: 'playback_stalled' \| 'buffer_empty' \| 'stall_resolved' \| 'likely_to_keep_up'; currentTime: number; duration: number; networkAvailable: boolean; bufferEmpty?: boolean; likelyToKeepUp?: boolean; }) =&gt; void</code> |
 
 **Returns:** <code>Promise&lt;<a href="#audioplayerlistenerresult">AudioPlayerListenerResult</a>&gt;</code>
 

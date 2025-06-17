@@ -113,11 +113,11 @@ public class AudioSource extends Binder {
             return -1;
         }
 
-        return duration / 1000.0f;
+        return duration / 1000;
     }
 
     public float getCurrentTime() {
-        return getPlayer().getCurrentPosition() / 1000.0f;
+        return getPlayer().getCurrentPosition() / 1000;
     }
 
     public void play() {

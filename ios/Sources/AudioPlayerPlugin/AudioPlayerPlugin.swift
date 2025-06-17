@@ -1,4 +1,5 @@
 import AVFAudio
+import MediaPlayer
 import Capacitor
 import Foundation
 
@@ -25,56 +26,150 @@ public class AudioPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "onAppLosesFocus", returnType: CAPPluginReturnCallback),
         CAPPluginMethod(name: "onAudioReady", returnType: CAPPluginReturnCallback),
         CAPPluginMethod(name: "onAudioEnd", returnType: CAPPluginReturnCallback),
-        CAPPluginMethod(name: "onPlaybackStatusChange", returnType: CAPPluginReturnCallback)
+        CAPPluginMethod(name: "onPlaybackStatusChange", returnType: CAPPluginReturnCallback),
+        CAPPluginMethod(name: "onPlayNext", returnType: CAPPluginReturnCallback),
+        CAPPluginMethod(name: "onPlayPrevious", returnType: CAPPluginReturnCallback),
+        CAPPluginMethod(name: "onAudioStalled", returnType: CAPPluginReturnCallback)
     ]
 
     let audioSession = AVAudioSession.sharedInstance()
     var audioSources = AudioSources()
     var onGainsFocusCallbackIds: [String: String] = [:]
     var onLosesFocusCallbackIds: [String: String] = [:]
+    // ADD THESE NEW CALLBACK DICTIONARIES
+    var onPlayNextCallbackIds: [String: String] = [:]
+    var onPlayPreviousCallbackIds: [String: String] = [:]
+    var onAudioStalledCallbackIds: [String: String] = [:]
+
+    // ADD REMOTE COMMAND CENTER REFERENCE
+    private let remoteCommandCenter = MPRemoteCommandCenter.shared()
 
     override public func load() {
-        super.load()
+            super.load()
 
-        do {
-            try audioSession.setCategory(
-                AVAudioSession.Category.playback,
-                mode: AVAudioSession.Mode.spokenAudio
+           do {
+             try audioSession.setActive(false)
+             try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.allowBluetooth])
+             try audioSession.setActive(true)
+
+           } catch {
+               print("Failed to set audio session category")
+           }
+
+            print("Listening to app background/foreground event changes")
+
+            let notificationCenter = NotificationCenter.default
+
+            notificationCenter.addObserver(
+                self,
+                selector: #selector(handleAppToBackground),
+                name: UIApplication.willResignActiveNotification,
+                object: nil
             )
 
-            try audioSession.setActive(false)
-        } catch {
-            print("Failed to set audio session category")
+            notificationCenter.addObserver(
+                self,
+                selector: #selector(handleAppToForeground),
+                name: UIApplication.didBecomeActiveNotification,
+                object: nil
+            )
+
+            // ADD REMOTE COMMAND CENTER SETUP
+            setupRemoteCommandCenter()
         }
 
-        print("Listening to app background/foreground event changes")
+        // ADD THIS NEW METHOD TO SETUP MEDIA CONTROLS
+        private func setupRemoteCommandCenter() {
+            // Enable play command
+            remoteCommandCenter.playCommand.addTarget { [weak self] event in
+                self?.handleRemotePlay()
+                return .success
+            }
 
-        let notificationCenter = NotificationCenter.default
+            // Enable pause command
+            remoteCommandCenter.pauseCommand.addTarget { [weak self] event in
+                self?.handleRemotePause()
+                return .success
+            }
 
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleAppToBackground),
-            name: UIApplication.willResignActiveNotification,
-            object: nil
-        )
+            // Enable next track command - THIS IS THE KEY PART
+            remoteCommandCenter.nextTrackCommand.isEnabled = true
+            remoteCommandCenter.nextTrackCommand.addTarget { [weak self] event in
+                self?.handleRemoteNext()
+                return .success
+            }
 
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleAppToForeground),
-            name: UIApplication.didBecomeActiveNotification,
-            object: nil
-        )
+            // Enable previous track command
+            remoteCommandCenter.previousTrackCommand.isEnabled = false
+            remoteCommandCenter.previousTrackCommand.addTarget { [weak self] event in
+                self?.handleRemotePrevious()
+                return .success
+            }
+
+            // Disable skip forward/backward to replace with next/previous
+            remoteCommandCenter.skipForwardCommand.isEnabled = false
+            remoteCommandCenter.skipBackwardCommand.isEnabled = false
     }
+
+    // ADD REMOTE COMMAND HANDLERS
+        private func handleRemotePlay() {
+            print("Remote play command received")
+            // Find the notification audio source and play it
+            if let notificationSource = audioSources.forNotification() {
+                notificationSource.play()
+            }
+        }
+
+        private func handleRemotePause() {
+            print("Remote pause command received")
+            // Find the notification audio source and pause it
+            if let notificationSource = audioSources.forNotification() {
+                notificationSource.pause()
+            }
+        }
+
+        private func handleRemoteNext() {
+            print("Remote next track command received")
+            // Trigger all registered next track callbacks
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    // Trigger all registered next track callbacks
+                    for callbackId in self.onPlayNextCallbackIds.values {
+                        self.bridge?.savedCall(withID: callbackId)?.resolve()
+                    }
+            }
+        }
+
+        private func handleRemotePrevious() {
+            print("Remote previous track command received")
+            // Trigger all registered previous track callbacks
+            for callbackId in onPlayPreviousCallbackIds.values {
+                bridge?.savedCall(withID: callbackId)?.resolve()
+            }
+        }
 
     @objc func create(_ call: CAPPluginCall) {
         do {
             let sourceId = try audioId(call)
 
             if audioSources.exists(sourceId: sourceId) {
-                print("An audio source with the ID \(sourceId) already exists")
-                call.reject("There was an issue creating the audio player [0].")
+                print("Audio source with ID \(sourceId) already exists - attempting cleanup")
 
-                return
+                            // Try to cleanup the existing source first
+                            if let existingSource = audioSources.get(sourceId: sourceId) {
+                                print("Cleaning up existing source:")
+
+                                existingSource.stop()
+                                existingSource.destroy()
+                                audioSources.remove(sourceId: sourceId)
+
+                                // Clean up callbacks
+                                onLosesFocusCallbackIds.removeValue(forKey: sourceId)
+                                onGainsFocusCallbackIds.removeValue(forKey: sourceId)
+                                onPlayNextCallbackIds.removeValue(forKey: sourceId)
+                                onPlayPreviousCallbackIds.removeValue(forKey: sourceId)
+
+                                print("Existing source cleaned up successfully")
+                            }
             }
 
             guard let source = call.getString("audioSource") else {
@@ -355,37 +450,48 @@ public class AudioPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func destroy(_ call: CAPPluginCall) {
-        do {
-            let audioSource = try getAudioSource(
-                methodName: "destroy",
-                call: call
-            )
+     @objc func destroy(_ call: CAPPluginCall) {
+            do {
+                let audioSource = try getAudioSource(
+                    methodName: "destroy",
+                    call: call
+                )
 
-            if audioSource.useForNotification {
-                try audioSession.setActive(false)
+                if audioSource.useForNotification {
+                    try audioSession.setActive(false)
+                }
+
+                audioSource.stop()
+                audioSource.destroy()
+
+                let audioId = try audioId(call)
+
+                audioSources.remove(sourceId: audioId)
+                onLosesFocusCallbackIds.removeValue(forKey: audioId)
+                onGainsFocusCallbackIds.removeValue(forKey: audioId)
+
+                // ADD CLEANUP FOR NEW CALLBACKS
+                onPlayNextCallbackIds.removeValue(forKey: audioId)
+                onPlayPreviousCallbackIds.removeValue(forKey: audioId)
+                onAudioStalledCallbackIds.removeValue(forKey: audioId)
+
+                // Disable remote commands if no more audio sources
+                if audioSources.count() == 0 {
+                    remoteCommandCenter.nextTrackCommand.isEnabled = false
+                    remoteCommandCenter.previousTrackCommand.isEnabled = false
+                }
+
+                call.resolve()
+            } catch AudioPlayerError.missingAudioSource {
+                return
+            } catch {
+                call.reject(
+                    "There was an issue cleaning up the audio player.",
+                    nil,
+                    error
+                )
             }
-
-            audioSource.stop()
-            audioSource.destroy()
-
-            let audioId = try audioId(call)
-
-            audioSources.remove(sourceId: audioId)
-            onLosesFocusCallbackIds.removeValue(forKey: audioId)
-            onGainsFocusCallbackIds.removeValue(forKey: audioId)
-
-            call.resolve()
-        } catch AudioPlayerError.missingAudioSource {
-            return
-        } catch {
-            call.reject(
-                "There was an issue cleaning up the audio player.",
-                nil,
-                error
-            )
         }
-    }
 
     @objc func onAppGainsFocus(_ call: CAPPluginCall) {
         do {
@@ -436,9 +542,11 @@ public class AudioPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func onAudioEnd(_ call: CAPPluginCall) {
+        print("Calling onAudioEnd");
         call.keepAlive = true
         bridge?.saveCall(call)
 
+        print("onAudioEnd callback ID: \(call.callbackId)")
         do {
             try getAudioSource(methodName: "onAudioEnd", call: call).setOnEnd(
                 callbackId: call.callbackId
@@ -529,4 +637,69 @@ public class AudioPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             bridge?.savedCall(withID: callbackId)?.resolve()
         }
     }
+
+   // ADD THESE NEW CALLBACK REGISTRATION METHODS
+       @objc func onPlayNext(_ call: CAPPluginCall) {
+           do {
+               call.keepAlive = true
+               bridge?.saveCall(call)
+
+               let audioId = try audioId(call)
+               onPlayNextCallbackIds[audioId] = call.callbackId
+
+               // Enable the next track command when callback is registered
+               remoteCommandCenter.nextTrackCommand.isEnabled = true
+
+               print("Registered onPlayNext callback for audio ID: \(audioId)")
+           } catch {
+               call.reject(
+                   "There was an issue registering onPlayNext",
+                   nil,
+                   error
+               )
+           }
+       }
+
+       @objc func onPlayPrevious(_ call: CAPPluginCall) {
+           do {
+               call.keepAlive = true
+               bridge?.saveCall(call)
+
+               let audioId = try audioId(call)
+               onPlayPreviousCallbackIds[audioId] = call.callbackId
+
+               print("Registered onPlayPrevious callback for audio ID: \(audioId)")
+           } catch {
+               call.reject(
+                   "There was an issue registering onPlayPrevious",
+                   nil,
+                   error
+               )
+           }
+       }
+
+       // Add this method to register the stall callback
+       @objc func onAudioStalled(_ call: CAPPluginCall) {
+           do {
+               call.keepAlive = true
+               bridge?.saveCall(call)
+
+               let audioId = try audioId(call)
+               onAudioStalledCallbackIds[audioId] = call.callbackId
+
+               // Set the callback on the audio source
+               try getAudioSource(methodName: "onAudioStalled", call: call)
+                   .setOnStalled(callbackId: call.callbackId)
+
+               print("Registered onAudioStalled callback for audio ID: \(audioId)")
+           } catch AudioPlayerError.missingAudioSource {
+               return
+           } catch {
+               call.reject(
+                   "There was an issue registering onAudioStalled",
+                   nil,
+                   error
+               )
+           }
+       }
 }
