@@ -5,18 +5,27 @@ import static androidx.media3.common.Player.*;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.datasource.HttpDataSource;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
+import java.net.SocketTimeoutException;
+import java.io.IOException;
 
 public class PlayerEventListener implements Player.Listener {
 
     private static final String TAG = "PlayerEventListener";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 2000; // 2 seconds
 
     private AudioPlayerPlugin plugin;
     private AudioSource audioSource;
+    private int retryCount = 0;
+    private Handler retryHandler = new Handler(Looper.getMainLooper());
 
     public PlayerEventListener(AudioPlayerPlugin plugin, AudioSource audioSource) {
         this.plugin = plugin;
@@ -54,6 +63,9 @@ public class PlayerEventListener implements Player.Listener {
 
         switch (playbackState) {
             case STATE_READY:
+                // Reset retry count on successful playback
+                retryCount = 0;
+                audioSource.setIsPlaying();
                 makeCall(audioSource.onReadyCallbackId);
                 // Check if we recovered from stalling
                 handleAudioStalled("likely_to_keep_up", false, true);
@@ -72,15 +84,35 @@ public class PlayerEventListener implements Player.Listener {
                 break;
 
             case STATE_IDLE:
-                // Player is idle
+                Log.d(TAG, "Player idle for: " + audioSource.id);
                 break;
         }
     }
 
     @Override
     public void onPlayerError(PlaybackException error) {
-        Log.e(TAG, "Player error for audio: " + audioSource.id, error);
-        handleAudioStalled("playback_stalled", false, false);
+        Log.e(TAG, "Player error occurred for audio: " + audioSource.id, error);
+
+        if (shouldRetryError(error) && retryCount < MAX_RETRY_ATTEMPTS) {
+            Log.i(TAG, "Attempting retry " + (retryCount + 1) + "/" + MAX_RETRY_ATTEMPTS + " for audio: " + audioSource.id);
+            retryCount++;
+
+            // Schedule retry after delay
+            retryHandler.postDelayed(() -> {
+                retryPlayback();
+            }, RETRY_DELAY_MS * retryCount); // Exponential backoff
+
+        } else {
+            Log.e(TAG, "Max retries exceeded or non-recoverable error for audio: " + audioSource.id);
+            retryCount = 0;
+            audioSource.setIsStopped();
+
+            // Trigger error callback
+            handleAudioStalled("playback_stalled", false, false);
+            if (audioSource.onEndCallbackId != null) {
+                makeCall(audioSource.onEndCallbackId);
+            }
+        }
     }
 
     @Override
@@ -99,6 +131,55 @@ public class PlayerEventListener implements Player.Listener {
                 }
             }
         }
+    }
+
+    private boolean shouldRetryError(PlaybackException error) {
+        // Check if this is a recoverable network error
+        Throwable cause = error.getCause();
+
+        // Retry for network timeouts and connection issues
+        if (cause instanceof HttpDataSource.HttpDataSourceException) {
+            HttpDataSource.HttpDataSourceException httpError = (HttpDataSource.HttpDataSourceException) cause;
+            Throwable httpCause = httpError.getCause();
+
+            return httpCause instanceof SocketTimeoutException ||
+                   httpCause instanceof IOException ||
+                   httpError.dataSpec != null; // Has data spec, likely recoverable
+        }
+
+        // Retry for source errors that might be temporary
+        return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+               error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+               error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS;
+    }
+
+    private void retryPlayback() {
+        try {
+            Player player = audioSource.getPlayer();
+            if (player != null) {
+                Log.i(TAG, "Retrying playback for audio: " + audioSource.id);
+
+                // Stop current playback
+                player.stop();
+
+                // Re-prepare the media source
+                player.prepare();
+
+                // Resume playback if it was playing before
+                if (audioSource.isPlaying()) {
+                    player.play();
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to retry playback for audio: " + audioSource.id, e);
+            retryCount = 0;
+            audioSource.setIsStopped();
+            makeCall(audioSource.onEndCallbackId);
+        }
+    }
+
+    public void resetRetryCount() {
+        retryCount = 0;
     }
 
     private void handleAudioStalled(String reason, boolean bufferEmpty, boolean likelyToKeepUp) {
@@ -147,20 +228,23 @@ public class PlayerEventListener implements Player.Listener {
     }
 
     private void makeCall(String callbackId, JSObject data) {
-        if (callbackId == null) {
+        if (callbackId == null || plugin == null) {
             return;
         }
 
-        PluginCall call = plugin.getBridge().getSavedCall(callbackId);
+        try {
+            PluginCall call = plugin.getBridge().getSavedCall(callbackId);
+            if (call == null) {
+                return;
+            }
 
-        if (call == null) {
-            return;
-        }
-
-        if (data.length() == 0) {
-            call.resolve();
-        } else {
-            call.resolve(data);
+            if (data.length() == 0) {
+                call.resolve();
+            } else {
+                call.resolve(data);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to trigger callback: " + callbackId, e);
         }
     }
 }

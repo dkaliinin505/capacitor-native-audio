@@ -10,6 +10,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.MediaSource;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
@@ -31,10 +32,11 @@ public class AudioSource extends Binder {
     public String onPlayPreviousCallbackId;
     public String onAudioStalledCallbackId;
 
-    private AudioPlayerPlugin pluginOwner;
+    public AudioPlayerPlugin pluginOwner;
 
     private Player player;
     private PlayerEventListener playerEventListener;
+    private Context context;
 
     private boolean isPlaying = false;
     private boolean isStopped = true;
@@ -62,11 +64,16 @@ public class AudioSource extends Binder {
             return;
         }
 
+        this.context = context;
         setIsStopped();
 
-        player = new ExoPlayer.Builder(context).setWakeMode(C.WAKE_MODE_NETWORK).build();
-        setPlayerAttributes();
+        // Create ExoPlayer with robust configuration for long playback sessions
+        player = new ExoPlayer.Builder(context)
+            .setLoadControl(RobustHlsConfig.createRobustLoadControl())
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build();
 
+        setPlayerAttributes();
         player.prepare();
     }
 
@@ -84,7 +91,10 @@ public class AudioSource extends Binder {
         player.setMediaItem(buildMediaItem());
         player.setRepeatMode(loopAudio ? ExoPlayer.REPEAT_MODE_ONE : ExoPlayer.REPEAT_MODE_OFF);
         player.setPlayWhenReady(false);
-        player.addListener(new PlayerEventListener(pluginOwner, this));
+
+        // Add event listener with retry logic
+        playerEventListener = new PlayerEventListener(pluginOwner, this);
+        player.addListener(playerEventListener);
     }
 
     public void changeAudioSource(String newSource) {
@@ -92,21 +102,29 @@ public class AudioSource extends Binder {
 
         Player player = getPlayer();
 
+        // Update the media item instead of setting media source directly
         player.setMediaItem(buildMediaItem());
         player.setPlayWhenReady(false);
         player.prepare();
+
+        // Reset retry count when changing sources
+        if (playerEventListener != null) {
+            playerEventListener.resetRetryCount();
+        }
     }
 
     public void changeMetadata(AudioMetadata metadata) {
         this.audioMetadata = metadata;
 
         var currentMediaItem = getPlayer().getCurrentMediaItem();
-        var newMediaItem = currentMediaItem
-            .buildUpon()
-            .setMediaMetadata(getMediaMetadata())
-            .build();
+        if (currentMediaItem != null) {
+            var newMediaItem = currentMediaItem
+                .buildUpon()
+                .setMediaMetadata(getMediaMetadata())
+                .build();
 
-        getPlayer().replaceMediaItem(0, newMediaItem);
+            getPlayer().replaceMediaItem(0, newMediaItem);
+        }
     }
 
     public float getDuration() {
@@ -225,6 +243,9 @@ public class AudioSource extends Binder {
 
     public void releasePlayer() {
         if (player != null) {
+            if (playerEventListener != null) {
+                player.removeListener(playerEventListener);
+            }
             player.release();
             player = null;
             playerEventListener = null;

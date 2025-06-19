@@ -1,6 +1,7 @@
 package us.dkaliinin505.capacitorjs.plugins.nativeaudio;
 
 import android.os.Binder;
+import android.util.Log;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -8,6 +9,7 @@ import us.dkaliinin505.capacitorjs.plugins.nativeaudio.exceptions.AudioSourceAlr
 
 public class AudioSources extends Binder {
 
+    private static final String TAG = "AudioSources";
     private HashMap<String, AudioSource> audioSources = new HashMap<>();
 
     public AudioSource get(String sourceId) {
@@ -20,6 +22,7 @@ public class AudioSources extends Binder {
         }
 
         audioSources.put(source.id, source);
+        Log.d(TAG, "Added audio source: " + source.id + ", total count: " + count());
     }
 
     public boolean remove(String sourceId) {
@@ -27,8 +30,17 @@ public class AudioSources extends Binder {
             return false;
         }
 
-        audioSources.remove(sourceId);
+        AudioSource removedSource = audioSources.remove(sourceId);
+        if (removedSource != null) {
+            // Clean up the audio source
+            try {
+                removedSource.releasePlayer();
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing player for source: " + sourceId, e);
+            }
+        }
 
+        Log.d(TAG, "Removed audio source: " + sourceId + ", remaining count: " + count());
         return true;
     }
 
@@ -66,13 +78,43 @@ public class AudioSources extends Binder {
                 continue;
             }
 
-            audioSource.releasePlayer();
+            try {
+                audioSource.releasePlayer();
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing player for source: " + audioSource.id, e);
+            }
 
             sourcesToRemove.add(audioSource);
         }
 
         for (AudioSource sourceToRemove : sourcesToRemove) {
             audioSources.remove(sourceToRemove.id);
+            Log.d(TAG, "Destroyed non-notification source: " + sourceToRemove.id);
         }
+
+        Log.d(TAG, "Destroyed " + sourcesToRemove.size() + " non-notification sources");
+    }
+
+    public void destroyAllSources() {
+        Log.d(TAG, "Destroying all " + count() + " audio sources");
+
+        for (AudioSource audioSource : audioSources.values()) {
+            try {
+                audioSource.releasePlayer();
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing player for source: " + audioSource.id, e);
+            }
+        }
+
+        audioSources.clear();
+        Log.d(TAG, "All audio sources destroyed");
+    }
+
+    public List<AudioSource> getAllSources() {
+        return new ArrayList<>(audioSources.values());
+    }
+
+    public boolean isEmpty() {
+        return audioSources.isEmpty();
     }
 }

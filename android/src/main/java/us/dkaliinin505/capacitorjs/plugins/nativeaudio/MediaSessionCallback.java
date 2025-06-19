@@ -78,7 +78,7 @@ public class MediaSessionCallback implements MediaSession.Callback {
     }
 
     @Override
-    public ListenableFuture<SessionResult> onPlayerCommandRequest(
+    public int onPlayerCommandRequest(
         @NonNull MediaSession session,
         @NonNull MediaSession.ControllerInfo controller,
         @Player.Command int playerCommand
@@ -88,21 +88,21 @@ public class MediaSessionCallback implements MediaSession.Callback {
                 case Player.COMMAND_SEEK_TO_NEXT:
                 case Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM:
                     handlePlayNext(session);
-                    break;
+                    return SessionResult.RESULT_SUCCESS;
 
                 case Player.COMMAND_SEEK_TO_PREVIOUS:
                 case Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM:
                     handlePlayPrevious(session);
-                    break;
+                    return SessionResult.RESULT_SUCCESS;
 
                 default:
-                    break;
+                    // For other commands, allow them to proceed normally
+                    return SessionResult.RESULT_SUCCESS;
             }
         } catch (Exception ex) {
             Log.e(TAG, "Error handling player command: " + playerCommand, ex);
+            return SessionResult.RESULT_ERROR_UNKNOWN;
         }
-
-        return MediaSession.Callback.super.onPlayerCommandRequest(session, controller, playerCommand);
     }
 
     @OptIn(markerClass = UnstableApi.class)

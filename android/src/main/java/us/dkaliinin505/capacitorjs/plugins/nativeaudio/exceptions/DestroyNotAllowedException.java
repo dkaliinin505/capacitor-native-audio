@@ -1,4 +1,4 @@
-package us.mediagrid.capacitorjs.plugins.nativeaudio.exceptions;
+package us.dkaliinin505.capacitorjs.plugins.nativeaudio.exceptions;
 
 public class DestroyNotAllowedException extends Exception {
 

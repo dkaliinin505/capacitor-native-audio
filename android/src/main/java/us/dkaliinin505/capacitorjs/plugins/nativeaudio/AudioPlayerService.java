@@ -2,6 +2,7 @@ package us.dkaliinin505.capacitorjs.plugins.nativeaudio;
 
 import android.content.Intent;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
@@ -17,14 +18,31 @@ public class AudioPlayerService extends MediaSessionService {
 
     private static final String TAG = "AudioPlayerService";
     public static final String PLAYBACK_CHANNEL_ID = "playback_channel";
+
     private MediaSession mediaSession = null;
+    private PowerManager.WakeLock wakeLock = null;
+    private WiFiLockManager wifiLockManager = null;
 
     @Override
     public void onCreate() {
         Log.i(TAG, "Service being created");
         super.onCreate();
 
+        // Acquire wake lock to prevent network disconnections
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "AudioPlayerService::WakeLock"
+        );
+        wakeLock.acquire(10 * 60 * 1000L /*10 minutes*/);
+
+        // Acquire WiFi lock for stable streaming
+        wifiLockManager = new WiFiLockManager(this);
+        wifiLockManager.acquireLock();
+
+        // Create ExoPlayer with robust configuration for long playback sessions
         ExoPlayer player = new ExoPlayer.Builder(this)
+            .setLoadControl(RobustHlsConfig.createRobustLoadControl())
             .setAudioAttributes(
                 new AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -33,8 +51,11 @@ public class AudioPlayerService extends MediaSessionService {
                 true
             )
             .setWakeMode(C.WAKE_MODE_NETWORK)
+            .setHandleAudioBecomingNoisy(true)  // Pause when headphones disconnected
             .build();
+
         player.setPlayWhenReady(false);
+
         mediaSession = new MediaSession.Builder(this, player)
             .setCallback(new MediaSessionCallback(this))
             .build();
@@ -44,7 +65,8 @@ public class AudioPlayerService extends MediaSessionService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.i(TAG, "Service starting");
 
-        return super.onStartCommand(intent, flags, startId);
+        // Return START_STICKY to restart service if killed by system
+        return START_STICKY;
     }
 
     @Override
@@ -57,7 +79,6 @@ public class AudioPlayerService extends MediaSessionService {
         Log.i(TAG, "Task removed");
 
         AudioSources audioSources = getAudioSourcesFromMediaSession();
-
         if (audioSources != null) {
             Log.i(TAG, "Destroying all non-notification audio sources");
             audioSources.destroyAllNonNotificationSources();
@@ -65,40 +86,54 @@ public class AudioPlayerService extends MediaSessionService {
 
         Player player = mediaSession.getPlayer();
 
-        // Make sure the service is not in foreground
-        if (player.getPlayWhenReady()) {
+        // Only stop if not playing notification audio
+        if (player.getPlayWhenReady() && !hasNotificationAudio(audioSources)) {
             player.pause();
+            stopSelf();
         }
-
-        stopSelf();
     }
 
     @Override
     public void onDestroy() {
         Log.i(TAG, "Service being destroyed");
 
-        AudioSources audioSources = getAudioSourcesFromMediaSession();
+        // Release wake lock
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
 
+        // Release WiFi lock
+        if (wifiLockManager != null) {
+            wifiLockManager.releaseLock();
+        }
+
+        AudioSources audioSources = getAudioSourcesFromMediaSession();
         if (audioSources != null) {
             Log.i(TAG, "Destroying all non-notification audio sources");
             audioSources.destroyAllNonNotificationSources();
         }
 
-        mediaSession.getPlayer().release();
-        mediaSession.release();
-        mediaSession = null;
+        if (mediaSession != null) {
+            mediaSession.getPlayer().release();
+            mediaSession.release();
+            mediaSession = null;
+        }
 
         super.onDestroy();
     }
 
     @OptIn(markerClass = UnstableApi.class)
     private AudioSources getAudioSourcesFromMediaSession() {
-        IBinder sourcesBinder = mediaSession.getSessionExtras().getBinder("audioSources");
+        if (mediaSession == null) return null;
 
+        IBinder sourcesBinder = mediaSession.getSessionExtras().getBinder("audioSources");
         if (sourcesBinder != null) {
             return (AudioSources) sourcesBinder;
         }
-
         return null;
+    }
+
+    private boolean hasNotificationAudio(AudioSources audioSources) {
+        return audioSources != null && audioSources.hasNotification();
     }
 }

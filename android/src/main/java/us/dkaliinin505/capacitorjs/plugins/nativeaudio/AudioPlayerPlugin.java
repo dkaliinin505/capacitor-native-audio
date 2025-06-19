@@ -700,4 +700,26 @@ public class AudioPlayerPlugin extends Plugin {
             }
         });
     }
+
+    public void handlePlayNextCallback(String callbackId) {
+            try {
+                PluginCall call = getBridge().getSavedCall(callbackId);
+                if (call != null) {
+                    call.resolve();
+                }
+            } catch (Exception ex) {
+                Log.e(TAG, "Error handling play next callback", ex);
+            }
+        }
+
+    public void handlePlayPreviousCallback(String callbackId) {
+        try {
+            PluginCall call = getBridge().getSavedCall(callbackId);
+            if (call != null) {
+                call.resolve();
+            }
+        } catch (Exception ex) {
+            Log.e(TAG, "Error handling play previous callback", ex);
+        }
+    }
 }
